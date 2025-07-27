@@ -32,8 +32,8 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.clients = []#Client("Иван Иванов", "123456"), Client("Петр Петров", "654321")]
-        self.products = []#Product("Товар 1", 100), Product("Товар 2", 200), Product("Товар 3", 300)]
+        self.clients = []
+        self.products = []
         self.orders = []
 
         self.initUI()
