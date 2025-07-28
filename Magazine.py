@@ -5,8 +5,6 @@ import string
 from datetime import datetime
 
 
-
-
 class Product:
     def __init__(self, name, price):
         self.name = name
@@ -57,7 +55,6 @@ class MainWindow(QWidget):
         self.orderTable.cellDoubleClicked.connect(self.openOrderDetails)
         layout.addWidget(self.orderTable)
 
-
         # Кнопки для добавления клиентов, товаров и заказов
         self.viewClientsButton = QPushButton('Список клиентов')
         self.viewClientsButton.clicked.connect(self.openClientsList)
@@ -87,7 +84,7 @@ class MainWindow(QWidget):
 
         self.setLayout(layout)
     def addTestData(self):
-         # Создаем тестовые товары и добавляем их в список товаров
+        # Создаем тестовые товары и добавляем их в список товаров
         product_a = Product("Товар A", 100)
         product_b = Product("Товар B", 150)
         product_c = Product("Товар C", 200)
@@ -100,8 +97,6 @@ class MainWindow(QWidget):
 
         self.clients.extend([client_1, client_2])  # Добавляем клиентов в список
         
-
-
         # Создаем заказы с номером и датой
         order_1 = Order(client_1, [product_a], [2], 
                         ''.join(random.choices(string.ascii_uppercase + string.digits, k=5)), datetime.now().strftime('%Y-%m-%d'))  # 2 штуки товара A
@@ -178,7 +173,7 @@ class ClientsListForm(QDialog):
         # Таблица клиентов
         self.clientTable = QTableWidget()
         self.clientTable.setColumnCount(2)
-        self.clientTable.setHorizontalHeaderLabels(['Имя клиента', 'Телефон'])
+        self.clientTable.setHorizontalHeaderLabels(['Имя клиента', 'ИНН'])
         self.populateClientTable()
         layout.addWidget(self.clientTable)
 
