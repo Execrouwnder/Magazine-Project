@@ -63,9 +63,10 @@ class MainWindow(QWidget):
         self.viewClientsButton.clicked.connect(self.openClientsList)
         layout.addWidget(self.viewClientsButton)
 
-        self.addProductButton = QPushButton('Добавить товар')
-        self.addProductButton.clicked.connect(self.openProductForm)
-        layout.addWidget(self.addProductButton)
+        # Кнопка для открытия списка товаров
+        self.viewProductsButton = QPushButton('Список товаров')
+        self.viewProductsButton.clicked.connect(self.openProductList)
+        layout.addWidget(self.viewProductsButton)
 
         self.addOrderButton = QPushButton('Добавить заказ')
         self.addOrderButton.clicked.connect(self.openOrderForm)
@@ -117,9 +118,10 @@ class MainWindow(QWidget):
     def updateOrderTable(self):
         self.orderTable.setRowCount(len(self.orders))
         for i, order in enumerate(self.orders):
+            client_name = order.client if isinstance(order.client, str) else order.client.name
             self.orderTable.setItem(i, 0, QTableWidgetItem(order.order_number))  # Номер заказа
             self.orderTable.setItem(i, 1, QTableWidgetItem(order.date))  # Дата
-            self.orderTable.setItem(i, 2, QTableWidgetItem(order.client.name))  # Клиент
+            self.orderTable.setItem(i, 2, QTableWidgetItem(client_name))  # Клиент
             self.orderTable.setItem(i, 3, QTableWidgetItem(str(order.total)))  # Итоговая сумма
             
 
@@ -127,12 +129,9 @@ class MainWindow(QWidget):
         dialog = ClientsListForm(self)
         dialog.exec_()  # Открываем форму списка клиентов
 
-    def openProductForm(self):
-        dialog = ProductForm(self)
-        if dialog.exec_():
-            name = dialog.productName.text()
-            price = float(dialog.productPrice.text())
-            self.products.append(Product(name, price))
+    def openProductList(self):
+        dialog = ProductListForm(self)
+        dialog.exec_()
 
     def openOrderDetails(self, row, column):
         order = self.orders[row]
@@ -156,7 +155,7 @@ class ClientForm(QDialog):
 
         if client:
             self.clientName.setText(client.name)
-            self.clientINN.setText(client.INN)
+            self.clientINN.setText(client.inn)
 
         layout = QFormLayout()
         layout.addRow('Имя клиента:', self.clientName)
@@ -243,7 +242,7 @@ class ClientsListForm(QDialog):
         if dialog.exec_():
             # Обновляем данные клиента по id
             client.name = dialog.clientName.text()
-            client.phone = dialog.clientPhone.text()
+            client.phone = dialog.clientINN.text()
             self.populateClientTable()
 
     def deleteClient(self):
@@ -264,14 +263,130 @@ class ClientsListForm(QDialog):
         # Обновляем таблицу
         self.populateClientTable()
 
-
-class ProductForm(QDialog):
+class ProductListForm(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle('Добавить товар')
+        self.setWindowTitle('Список товаров')
+
+        layout = QVBoxLayout()
+
+        # Таблица товаров
+        self.productTable = QTableWidget()
+        self.productTable.setColumnCount(2)
+        self.productTable.setHorizontalHeaderLabels(['Название товара', 'Цена'])
+        self.populateProductTable()
+        layout.addWidget(self.productTable)
+
+        # Кнопки для добавления, редактирования и удаления товара
+        self.addProductButton = QPushButton('Добавить товар')
+        self.addProductButton.clicked.connect(self.openAddProductForm)
+        layout.addWidget(self.addProductButton)
+
+        self.editProductButton = QPushButton('Редактировать товар')
+        self.editProductButton.setEnabled(False)  # Выключено по умолчанию
+        self.editProductButton.clicked.connect(self.openEditProductForm)
+        layout.addWidget(self.editProductButton)
+
+        self.deleteProductButton = QPushButton('Удалить товар')
+        self.deleteProductButton.setEnabled(False)  # Выключено по умолчанию
+        self.deleteProductButton.clicked.connect(self.deleteProduct)
+        layout.addWidget(self.deleteProductButton)
+
+        self.setLayout(layout)
+
+        self.deleted_product_name = None
+
+        # Обработка выбора товара в таблице
+        self.productTable.selectionModel().selectionChanged.connect(self.onProductSelected)
+
+    def populateProductTable(self):
+        self.productTable.setRowCount(len(self.parent().products))
+        for i, product in enumerate(self.parent().products):
+            self.productTable.setItem(i, 0, QTableWidgetItem(product.name))  # Название товара
+            self.productTable.setItem(i, 1, QTableWidgetItem(str(product.price)))  # Цена товара
+
+    def onProductSelected(self):
+        selected_row = self.productTable.selectedIndexes()
+        if selected_row:
+            # Проверяем, используется ли товар в заказах
+            product = self.parent().products[selected_row[0].row()]
+            if self.isProductInOrders(product):
+                self.deleteProductButton.setEnabled(False)  # Если товар используется, блокируем кнопку
+            else:
+                self.deleteProductButton.setEnabled(True)  # Иначе кнопку можно нажать
+            self.editProductButton.setEnabled(True)
+        else:
+            self.editProductButton.setEnabled(False)
+            self.deleteProductButton.setEnabled(False)
+
+    def isProductInOrders(self, product):
+        # Проверяем, используется ли товар в каких-либо заказах
+        for order in self.parent().orders:
+            if product.name in [p.name for p in order.products]:
+                return True
+        return False
+
+    def openAddProductForm(self):
+        dialog = ProductForm(self)
+        if dialog.exec_():
+            name = dialog.productName.text()
+            price = float(dialog.productPrice.text())
+            self.parent().products.append(Product(name, price))
+            self.populateProductTable()
+
+    def openEditProductForm(self):
+        selected_row = self.productTable.selectedIndexes()[0].row()
+        product = self.parent().products[selected_row]
+        dialog = ProductForm(self, product)
+        if dialog.exec_():
+            # Обновляем данные товара
+            product.name = dialog.productName.text()
+            product.price = float(dialog.productPrice.text())
+            self.populateProductTable()
+
+            # После редактирования товара обновляем все заказы
+            self.updateOrders()
+
+    def deleteProduct(self):
+        selected_row = self.productTable.selectedIndexes()[0].row()
+        product_to_delete = self.parent().products[selected_row]
+
+        # Сохраняем имя удалённого товара
+        self.deleted_product_name = product_to_delete.name
+
+        # Удаляем товар из списка
+        del self.parent().products[selected_row]
+
+        # Заменяем товар в заказах на "Удален <Имя товара>"
+        for order in self.parent().orders:
+            for i, product in enumerate(order.products):
+                if product == product_to_delete:
+                    order.products[i] = f"Удален <{self.deleted_product_name}>"
+
+        # Обновляем таблицу товаров
+        self.populateProductTable()
+        # Обновляем таблицу заказов после удаления товара
+        self.updateOrders()
+
+    def updateOrders(self):
+        # Пересчитываем итоговую сумму для каждого заказа
+        for order in self.parent().orders:
+            order.total = sum(product.price * quantity for product, quantity in zip(order.products, order.quantity_list))
+
+        # Обновляем таблицу заказов
+        self.parent().updateOrderTable()
+
+class ProductForm(QDialog):
+    def __init__(self, parent=None, product=None):
+        super().__init__(parent)
+        self.setWindowTitle('Добавить товар' if product is None else 'Редактировать товар')
 
         self.productName = QLineEdit(self)
         self.productPrice = QLineEdit(self)
+
+        if product:
+            self.productName.setText(product.name)
+            self.productPrice.setText(str(product.price))
 
         layout = QFormLayout()
         layout.addRow('Название товара:', self.productName)
@@ -283,6 +398,7 @@ class ProductForm(QDialog):
 
         layout.addWidget(buttonBox)
         self.setLayout(layout)
+
 class OrderDetailsForm(QDialog):
     def __init__(self, parent, order):
         super().__init__(parent)
@@ -293,7 +409,15 @@ class OrderDetailsForm(QDialog):
         layout = QVBoxLayout()
 
         # Информация о заказе
-        order_info = QLabel(f'Номер заказа: {order.order_number}\nДата: {order.date}\nКлиент: {order.client.name}\nИтоговая сумма: {order.total}')
+        # Проверяем, является ли order.client строкой (если клиент удалён)
+        if isinstance(order.client, str) and order.client.startswith("Удален"):
+            client_name = order.client
+            client_inn = "Удален"
+        else:
+            client_name = order.client.name
+            client_inn = order.client.inn
+
+        order_info = QLabel(f'Номер заказа: {order.order_number}\nДата: {order.date}\nКлиент: {client_name}\nИНН: {client_inn}\nИтоговая сумма: {order.total}')
         layout.addWidget(order_info)
 
         # Таблица товаров в заказе
